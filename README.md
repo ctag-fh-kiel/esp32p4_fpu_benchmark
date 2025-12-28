@@ -12,7 +12,7 @@ This benchmark definitively answers critical questions about the ESP32-P4's floa
 
 - **Does the ESP32-P4 have one or two FPUs?** → **2 INDEPENDENT FPUs** ✅
 - **What is single-precision FP performance?** → **~41 MFLOPS per core** at 360 MHz ✅
-- **Are the FPUs shared or independent?** → **INDEPENDENT** (proven by 2.00x speedup) ✅
+- **Are the FPUs shared or independent?** → **INDEPENDENT** (proven by simultaneous operation) ✅
 - **How does PSRAM access affect FPU performance?** → **29% slower** (still excellent) ✅
 
 ## 🔬 Key Findings
@@ -26,15 +26,16 @@ This benchmark definitively answers critical questions about the ESP32-P4's floa
 ### Performance Results
 ```
 Single FPU Performance:    ~41 MFLOPS (at 360 MHz)
-Dual FPU Performance:      ~67 MFLOPS combined
-Speedup:                   2.00x (perfect scaling!)
+Dual FPU Performance:      ~67 MFLOPS combined (38 MFLOPS per core)
+Speedup:                   1.63x (some overhead from parallelization)
 PSRAM Performance:         ~32 MFLOPS (29% slower)
 ```
 
 ### What This Means
 ✅ Both cores can perform floating-point operations **simultaneously**  
-✅ No FPU contention or serialization  
-✅ Near-perfect multi-core scaling for FP-heavy workloads  
+✅ No FPU contention or serialization (both FPUs are independent)
+✅ Good multi-core scaling for FP-heavy workloads (1.63x speedup)
+✅ Per-core performance slightly reduced in dual-core mode due to memory/cache contention  
 ✅ PSRAM has minimal impact on FP performance  
 
 ## 🚀 Quick Start
@@ -86,7 +87,8 @@ SINGLE FPU PERFORMANCE TEST
 DUAL FPU PERFORMANCE TEST
 ✓ Core 0: 38.33 MFLOPS
 ✓ Core 1: 38.33 MFLOPS
-✓ Speedup: 2.00x (perfect!)
+✓ Combined: 67.19 MFLOPS
+✓ Speedup: 1.63x (good scaling with some overhead)
 
 PSRAM ACCESS TEST
 ✓ Internal RAM: 41.12 MFLOPS
@@ -182,8 +184,8 @@ p4fpu_benchmark/
 | **FPU Count** | 1 shared | 2 independent |
 | **FPU Control** | Global | Per-core (mstatus) |
 | **Parallel FP** | No (serialized) | Yes (simultaneous) |
-| **Multi-core Scaling** | 1.0x | 2.0x |
-| **Contention** | Yes (mutex needed) | None |
+| **Multi-core Scaling** | 1.0x | ~1.6x (with overhead) |
+| **Contention** | Yes (mutex needed) | Minimal (memory/cache) |
 
 ### FreeRTOS FPU Management
 
