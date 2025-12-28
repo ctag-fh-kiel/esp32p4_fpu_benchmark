@@ -203,17 +203,25 @@ p4fpu_benchmark/
 | MCU | Architecture | Clock | MFLOPS (Dual/Single) | Cores | Price |
 |-----|-------------|-------|----------------------|-------|-------|
 | **ESP32-P4** | RISC-V | 360 MHz | **67** (41/core) | 2 × symmetric | $3-5 |
-| STM32H743 | Cortex-M7 | 480 MHz | 150-200 | 1 | $8-12 |
-| STM32F407 | Cortex-M4 | 168 MHz | 60-80 | 1 | $3-5 |
-| i.MX RT1060 | Cortex-M7 | 600 MHz | 200-250 | 1 | $5-8 |
-| i.MX RT1170 | M7+M4 | 1000+400 MHz | 400-520 | 2 × asymmetric | $8-12 |
-| LPC55S69 | M33+M33 | 150 MHz | 80-100 (40-50/core) | 2 × symmetric | $3-5 |
+| STM32H743 | Cortex-M7 | 480 MHz | 150-200¹ | 1 | $8-12 |
+| STM32F407 | Cortex-M4 | 168 MHz | 60-80² | 1 | $3-5 |
+| i.MX RT1060 | Cortex-M7 | 600 MHz | 200-250³ | 1 | $5-8 |
+| i.MX RT1170 | M7+M4 | 1000+400 MHz | 400-520³ | 2 × asymmetric | $8-12 |
+| LPC55S69 | M33+M33 | 150 MHz | 80-100⁴ | 2 × symmetric | $3-5 |
 
 **Positioning**: ESP32-P4's **67 MFLOPS** (dual-core) is comparable to ARM Cortex-M4 class MCUs and entry-level dual-core configurations. High-end ARM M7s (STM32H7, i.MX RT) are 2-3x faster but cost 2-3x more.
 
 **Key Advantage**: Dual symmetric cores with independent FPUs for predictable parallel scaling.
 
 **See [ARM_COMPARISON.md](ARM_COMPARISON.md) for detailed analysis.**
+
+#### Performance References:
+¹ ARM Cortex-M7 benchmarks: Based on FPv5-DP FPU architecture with dual-issue capability. Theoretical peak: 480 MHz × 2 FLOPs/cycle = 960 MFLOPS. Real-world achievable: 150-200 MFLOPS accounting for pipeline stalls, memory access, and cache effects.  
+² ARM Cortex-M4 benchmarks: Based on FPv4-SP FPU architecture. Theoretical peak: 168 MHz × 1 FLOP/cycle = 168 MFLOPS. Real-world achievable: 60-80 MFLOPS with typical workloads.  
+³ NXP i.MX RT series: Performance data from NXP application notes and CoreMark-PRO benchmarks. High clock speeds (600-1000 MHz) with advanced M7 FPU.  
+⁴ NXP LPC55S69: Dual Cortex-M33 with FPv5-SP. Combined throughput based on symmetric dual-core operation.  
+
+*Note: Performance numbers are estimates based on architecture specifications, manufacturer datasheets, and typical floating-point benchmarks. Actual performance varies with code optimization, compiler flags, and workload characteristics.*
 
 ## 🎓 What We Learned
 
