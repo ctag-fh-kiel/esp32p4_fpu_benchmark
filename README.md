@@ -24,12 +24,13 @@ This benchmark definitively answers critical questions about the ESP32-P4's floa
 - **Per-core mstatus CSR** control (not shared like ESP32 Xtensa)
 - **RISC-V F extension** (single-precision floating point only)
 - **No D extension** (double-precision is software emulated)
+- **Note**: ESP32-P4 does NOT have WiFi/BLE (unlike ESP32/ESP32-S3)
 
 ### Performance Results
 ```
-Single FPU Performance:    ~41 MFLOPS (at 360 MHz)
-Dual FPU Performance:      ~67 MFLOPS combined (38 MFLOPS per core)
-Speedup:                   1.63x (some overhead from parallelization)
+Single-Core Performance:   ~41 MFLOPS (at 360 MHz)
+Dual-Core Performance:     ~67 MFLOPS combined (38 MFLOPS per core)
+Dual-Core Speedup:         1.63x (some overhead from parallelization)
 PSRAM Performance:         ~32 MFLOPS (29% slower)
 Double Precision:          ~4-10 MFLOPS (software emulated, 4-10x slower)
 ```
@@ -39,7 +40,8 @@ Double Precision:          ~4-10 MFLOPS (software emulated, 4-10x slower)
 ✅ No FPU contention or serialization (both FPUs are independent)
 ✅ Good multi-core scaling for FP-heavy workloads (1.63x speedup)
 ✅ Per-core performance slightly reduced in dual-core mode due to memory/cache contention  
-✅ PSRAM has minimal impact on FP performance  
+✅ PSRAM has minimal impact on FP performance
+✅ **Dual-core 67 MFLOPS** is the realistic performance for typical applications  
 
 ## 🚀 Quick Start
 
@@ -192,6 +194,25 @@ p4fpu_benchmark/
 └── build/                       # Build output directory
 ```
 
+## 📊 Performance Comparison
+
+### vs ARM Architectures
+
+| MCU | Architecture | Clock | MFLOPS (Dual/Single) | Cores | Price |
+|-----|-------------|-------|----------------------|-------|-------|
+| **ESP32-P4** | RISC-V | 360 MHz | **67** (41/core) | 2 × symmetric | $3-5 |
+| STM32H743 | Cortex-M7 | 480 MHz | 150-200 | 1 | $8-12 |
+| STM32F407 | Cortex-M4 | 168 MHz | 60-80 | 1 | $3-5 |
+| i.MX RT1060 | Cortex-M7 | 600 MHz | 200-250 | 1 | $5-8 |
+| i.MX RT1170 | M7+M4 | 1000+400 MHz | 400-520 | 2 × asymmetric | $8-12 |
+| LPC55S69 | M33+M33 | 150 MHz | 80-100 (40-50/core) | 2 × symmetric | $3-5 |
+
+**Positioning**: ESP32-P4's **67 MFLOPS** (dual-core) is comparable to ARM Cortex-M4 class MCUs and entry-level dual-core configurations. High-end ARM M7s (STM32H7, i.MX RT) are 2-3x faster but cost 2-3x more.
+
+**Key Advantage**: Dual symmetric cores with independent FPUs for predictable parallel scaling.
+
+**See [ARM_COMPARISON.md](ARM_COMPARISON.md) for detailed analysis.**
+
 ## 🎓 What We Learned
 
 ### ESP32-P4 vs ESP32 (Xtensa)
@@ -203,6 +224,7 @@ p4fpu_benchmark/
 | **Parallel FP** | No (serialized) | Yes (simultaneous) |
 | **Multi-core Scaling** | 1.0x | ~1.6x (with overhead) |
 | **Contention** | Yes (mutex needed) | Minimal (memory/cache) |
+| **Connectivity** | WiFi/BLE | None (different use case) |
 
 ### FreeRTOS FPU Management
 
