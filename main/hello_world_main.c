@@ -29,21 +29,24 @@
 #define FPU_REG_COUNT 32
 
 // Macro to perform FPU operations
+// Using volatile and memory barriers to prevent optimization
 #define PERFORM_FPU_OPS(ptr, result) do { \
-    float a = 1.5f; \
-    float b = 2.3f; \
-    float c = 3.7f; \
-    float d = 4.2f; \
+    volatile float a = 1.5f; \
+    volatile float b = 2.3f; \
+    volatile float c = 3.7f; \
+    volatile float d = 4.2f; \
     for (volatile int i = 0; i < FPU_OPS_COUNT; i++) { \
         a = a * b + c; \
         b = b * c + d; \
         c = c * d + a; \
         d = d * a + b; \
         if (ptr != NULL) { \
-            ((float*)(ptr))[i % 1024] = a; \
+            ((volatile float*)(ptr))[i % 1024] = a; \
         } \
+        __asm__ volatile ("" ::: "memory"); \
     } \
     result = a + b + c + d; \
+    __asm__ volatile ("" ::: "memory"); \
 } while(0)
 
 // Global variables for dual-core test
@@ -56,6 +59,29 @@ static volatile int64_t core1_start_time = 0;
 static volatile int64_t core0_end_time = 0;
 static volatile int64_t core1_end_time = 0;
 
+// Helper function to check FPU status
+static uint32_t read_mstatus_fpu(void)
+{
+    uint32_t mstatus;
+    __asm__ volatile ("csrr %0, mstatus" : "=r"(mstatus));
+    // Extract FPU state bits [14:13]
+    return (mstatus >> 13) & 0x3;
+}
+
+static void print_fpu_status(void)
+{
+    uint32_t mstatus;
+    __asm__ volatile ("csrr %0, mstatus" : "=r"(mstatus));
+    uint32_t fpu_state = (mstatus >> 13) & 0x3;
+    printf("  FPU Status (mstatus[14:13]): 0x%lx (raw mstatus: 0x%08lx) ", fpu_state, mstatus);
+    switch(fpu_state) {
+        case 0: printf("(OFF - FPU disabled)\n"); break;
+        case 1: printf(" (INITIAL - FPU enabled, registers clean)\n"); break;
+        case 2: printf("(CLEAN - FPU used, registers saved)\n"); break;
+        case 3: printf("(DIRTY - FPU used, registers not saved)\n"); break;
+    }
+}
+
 // Task for Core 1 FPU test
 static void core1_fpu_task(void *arg)
 {
@@ -63,6 +89,7 @@ static void core1_fpu_task(void *arg)
     rv_utils_enable_fpu();
 
     printf("Core 1: Starting FPU test on core %d\n", esp_cpu_get_core_id());
+    print_fpu_status();
 
     // Wait a bit to synchronize with core 0
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -74,6 +101,7 @@ static void core1_fpu_task(void *arg)
 
     core1_done = true;
     printf("Core 1: FPU test complete, result = %f\n", core1_result);
+    print_fpu_status();
 
     vTaskDelete(NULL);
 }
@@ -93,17 +121,54 @@ static void test_fpu_count(void)
 
 #if SOC_CPU_HAS_FPU
     printf("FPU Support: YES\n");
-    printf("\nRISC-V Architecture Details:\n");
-    printf("- Each RISC-V core has its own FPU\n");
-    printf("- Total FPUs: %d (one per core)\n", chip_info.cores);
-    printf("- FPU Type: Single-precision floating point (F extension)\n");
-    printf("- FPU Registers: 32 (f0-f31)\n");
+    printf("\nRISC-V Architecture Analysis:\n");
+    printf("- FPU control: Per-core mstatus CSR (independent)\n");
+    printf("- FPU registers: 32 per core (f0-f31)\n");
+    printf("- FPU state: Saved during task context switches\n");
+    printf("- Coprocessor index: %d\n", SOC_CPU_COPROC_NUM);
+
+    // Enable FPU and check status
+    rv_utils_enable_fpu();
+    printf("After rv_utils_enable_fpu():\n");
+    print_fpu_status();
+
+    // Perform a simple FPU operation to verify
+    volatile float test_a = 1.5f;
+    volatile float test_b = 2.3f;
+    volatile float test_c;
+
+    // Re-enable FPU just before the operation to ensure it's enabled
+    rv_utils_enable_fpu();
+
+    __asm__ volatile (
+        "fmul.s %0, %1, %2"
+        : "=f"(test_c)
+        : "f"(test_a), "f"(test_b)
+    );
+
+    // Check FPU status IMMEDIATELY after FPU operation (before printf)
+    uint32_t fpu_state_after_op = read_mstatus_fpu();
+
+    printf("  FPU Test: 1.5 * 2.3 = %f (Expected: 3.45)\n", test_c);
+    printf("  FPU Status immediately after fmul.s: 0x%lx ", fpu_state_after_op);
+    switch(fpu_state_after_op) {
+        case 0: printf("(OFF - FPU disabled after instruction!)\n"); break;
+        case 1: printf("(INITIAL - enabled but not marked dirty?)\n"); break;
+        case 2: printf("(CLEAN - used and saved)\n"); break;
+        case 3: printf("(DIRTY - used, as expected!)\n"); break;
+    }
+    printf("  FPU Status after printf: ");
+    print_fpu_status();
+
+    printf("\nConclusion:\n");
+    printf("- The ESP32-P4 has %d INDEPENDENT FPU%s\n",
+           chip_info.cores, chip_info.cores > 1 ? "s" : "");
+    printf("- Each RISC-V core has its own FPU hardware\n");
+    printf("- FPU state is managed per-core via mstatus CSR\n");
+    printf("- FPUs are NOT shared between cores\n");
 #else
     printf("FPU Support: NO\n");
 #endif
-
-    printf("\nConclusion: The ESP32-P4 has %d FPU%s (one per RISC-V core)\n",
-           chip_info.cores, chip_info.cores > 1 ? "s" : "");
 }
 
 // Function to test single FPU performance (single precision)
@@ -115,25 +180,32 @@ static void test_single_fpu_performance(void)
 
     // Enable FPU
     rv_utils_enable_fpu();
+    printf("Running on core: %d\n", esp_cpu_get_core_id());
+    print_fpu_status();
 
     float result = 0.0f;
     int64_t total_time = 0;
 
-    printf("Running %d iterations of %d FPU operations each...\n",
+    printf("\nRunning %d iterations of %d FPU operations each...\n",
            NUM_TEST_ITERATIONS, FPU_OPS_COUNT);
 
     for (int iter = 0; iter < NUM_TEST_ITERATIONS; iter++) {
+        uint32_t fpu_before = read_mstatus_fpu();
         int64_t start = esp_timer_get_time();
         PERFORM_FPU_OPS(NULL, result);
         int64_t end = esp_timer_get_time();
+        uint32_t fpu_after = read_mstatus_fpu();
 
         int64_t elapsed = end - start;
         total_time += elapsed;
-        printf("  Iteration %d: %lld us\n", iter + 1, elapsed);
+        printf("  Iteration %d: %lld us (FPU: 0x%lx->0x%lx)\n", iter + 1, elapsed, fpu_before, fpu_after);
     }
 
     int64_t avg_time = total_time / NUM_TEST_ITERATIONS;
     float mflops = (float)(FPU_OPS_COUNT * 4) / (float)avg_time;
+
+    printf("\nAfter FPU operations:\n");
+    print_fpu_status();
 
     printf("\nResults:\n");
     printf("  Average time: %lld us\n", avg_time);
@@ -172,6 +244,7 @@ static void test_dual_fpu_performance(void)
     vTaskDelay(pdMS_TO_TICKS(100));
 
     printf("Core 0: Starting FPU test on core %d\n", esp_cpu_get_core_id());
+    print_fpu_status();
 
     // Perform FPU operations on core 0
     core0_start_time = esp_timer_get_time();
@@ -180,6 +253,7 @@ static void test_dual_fpu_performance(void)
 
     core0_done = true;
     printf("Core 0: FPU test complete, result = %f\n", core0_result);
+    print_fpu_status();
 
     // Wait for core 1 to finish
     while (!core1_done) {
