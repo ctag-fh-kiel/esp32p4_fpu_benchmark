@@ -371,6 +371,83 @@ static void test_fpu_performance_with_psram(void)
 #endif
 }
 
+// Function to test double-precision performance (should be poor/emulated)
+static void test_double_precision_performance(void)
+{
+    printf("\n========================================\n");
+    printf("DOUBLE PRECISION PERFORMANCE TEST\n");
+    printf("========================================\n");
+    printf("Note: ESP32-P4 FPU only supports SINGLE precision (F extension)\n");
+    printf("Double precision operations are EMULATED in software!\n\n");
+
+    // Enable FPU (won't help with double precision, but for consistency)
+    rv_utils_enable_fpu();
+
+    volatile double result = 0.0;
+    int64_t total_time = 0;
+
+    printf("Running %d iterations of %d double-precision operations...\n",
+           NUM_TEST_ITERATIONS, FPU_OPS_COUNT);
+
+    for (int iter = 0; iter < NUM_TEST_ITERATIONS; iter++) {
+        volatile double a = 1.5;
+        volatile double b = 2.3;
+        volatile double c = 3.7;
+        volatile double d = 4.2;
+
+        int64_t start = esp_timer_get_time();
+
+        for (volatile int i = 0; i < FPU_OPS_COUNT; i++) {
+            a = a * b + c;
+            b = b * c + d;
+            c = c * d + a;
+            d = d * a + b;
+            __asm__ volatile ("" ::: "memory");
+        }
+
+        result = a + b + c + d;
+        __asm__ volatile ("" ::: "memory");
+
+        int64_t end = esp_timer_get_time();
+
+        int64_t elapsed = end - start;
+        total_time += elapsed;
+        printf("  Iteration %d: %lld us\n", iter + 1, elapsed);
+    }
+
+    int64_t avg_time = total_time / NUM_TEST_ITERATIONS;
+    double mflops = (double)(FPU_OPS_COUNT * 4) / (double)avg_time;
+
+    printf("\nResults (Double Precision):\n");
+    printf("  Average time: %lld us\n", avg_time);
+    printf("  Operations: %d x 4 = %d FLOPs\n", FPU_OPS_COUNT, FPU_OPS_COUNT * 4);
+    printf("  Performance: %.2f MFLOPS\n", (float)mflops);
+    printf("  Time per operation: %.2f ns\n", (float)avg_time * 1000.0f / (float)(FPU_OPS_COUNT * 4));
+    printf("  Result (to prevent optimization): %.15f\n", result);
+
+    printf("\n📊 Comparison with Single Precision:\n");
+    printf("  Single precision (hardware):  ~41 MFLOPS\n");
+    printf("  Double precision (software):  ~%.2f MFLOPS\n", (float)mflops);
+    printf("  Slowdown factor: ~%.1fx\n", 41.0f / (float)mflops);
+
+    printf("\n🔍 Analysis:\n");
+    if (mflops < 5.0) {
+        printf("  ✓ Double precision is 8x+ SLOWER - confirms software emulation\n");
+        printf("  ✓ ESP32-P4 FPU does NOT have hardware double precision support\n");
+        printf("  ✓ RISC-V F extension only (single precision)\n");
+    } else if (mflops < 20.0) {
+        printf("  ✓ Double precision is significantly slower\n");
+        printf("  ✓ Likely using software emulation (libgcc)\n");
+    } else {
+        printf("  ⚠ Double precision is surprisingly fast - unexpected!\n");
+        printf("  ⚠ May need further investigation\n");
+    }
+
+    printf("\n💡 Recommendation:\n");
+    printf("  Use SINGLE PRECISION (float) for best performance on ESP32-P4!\n");
+    printf("  Double precision (double) should be avoided if performance matters.\n");
+}
+
 void app_main(void)
 {
     printf("\n");
@@ -397,6 +474,9 @@ void app_main(void)
 
     vTaskDelay(pdMS_TO_TICKS(1000));
     test_fpu_performance_with_psram();
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_double_precision_performance();
 
     printf("\n========================================\n");
     printf("ALL TESTS COMPLETED\n");

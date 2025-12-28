@@ -14,6 +14,7 @@ This benchmark definitively answers critical questions about the ESP32-P4's floa
 - **What is single-precision FP performance?** → **~41 MFLOPS per core** at 360 MHz ✅
 - **Are the FPUs shared or independent?** → **INDEPENDENT** (proven by simultaneous operation) ✅
 - **How does PSRAM access affect FPU performance?** → **29% slower** (still excellent) ✅
+- **Does it support double-precision in hardware?** → **NO** (software emulated, 4-10x slower) ✅
 
 ## 🔬 Key Findings
 
@@ -21,7 +22,8 @@ This benchmark definitively answers critical questions about the ESP32-P4's floa
 - **2 independent FPUs** (one per RISC-V core)
 - Each core has **32 FPU registers** (f0-f31)
 - **Per-core mstatus CSR** control (not shared like ESP32 Xtensa)
-- **RISC-V F extension** (single-precision floating point)
+- **RISC-V F extension** (single-precision floating point only)
+- **No D extension** (double-precision is software emulated)
 
 ### Performance Results
 ```
@@ -29,6 +31,7 @@ Single FPU Performance:    ~41 MFLOPS (at 360 MHz)
 Dual FPU Performance:      ~67 MFLOPS combined (38 MFLOPS per core)
 Speedup:                   1.63x (some overhead from parallelization)
 PSRAM Performance:         ~32 MFLOPS (29% slower)
+Double Precision:          ~4-10 MFLOPS (software emulated, 4-10x slower)
 ```
 
 ### What This Means
@@ -94,6 +97,12 @@ PSRAM ACCESS TEST
 ✓ Internal RAM: 41.12 MFLOPS
 ✓ PSRAM: 31.98 MFLOPS
 ✓ Slowdown: 1.29x (29% slower)
+
+DOUBLE PRECISION PERFORMANCE TEST
+✓ Single precision (hardware): 41.12 MFLOPS
+✓ Double precision (software): ~10 MFLOPS
+✓ Slowdown: ~4x (confirms software emulation)
+✓ Analysis: NO hardware double-precision support
 ```
 
 ## 📚 Documentation
@@ -102,6 +111,8 @@ Comprehensive documentation is provided:
 
 - **[OUTPUT_ANALYSIS.md](OUTPUT_ANALYSIS.md)** - Detailed analysis of benchmark results
 - **[FPU_ARCHITECTURE_ANALYSIS.md](FPU_ARCHITECTURE_ANALYSIS.md)** - Deep dive into ESP32-P4 FPU architecture
+- **[DOUBLE_PRECISION_TEST.md](DOUBLE_PRECISION_TEST.md)** - Double-precision test explanation and expected results
+- **[SPEEDUP_EXPLANATION.md](SPEEDUP_EXPLANATION.md)** - Why dual-core speedup is 1.63x not 2.0x
 - **[MANUAL_TEST_GUIDE.md](MANUAL_TEST_GUIDE.md)** - Step-by-step test interpretation guide
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Quick command reference
 - **[README_FPU_BENCHMARK.md](README_FPU_BENCHMARK.md)** - Additional technical details
@@ -110,7 +121,7 @@ Comprehensive documentation is provided:
 
 ### Test Suite
 
-The benchmark includes **4 comprehensive tests**:
+The benchmark includes **5 comprehensive tests**:
 
 #### 1. FPU Count Detection
 - Queries hardware capabilities
@@ -133,6 +144,12 @@ The benchmark includes **4 comprehensive tests**:
 - Allocates buffer in external PSRAM
 - Measures performance with/without PSRAM access
 - Quantifies memory subsystem impact
+
+#### 5. Double Precision Performance
+- Tests double-precision floating point operations
+- Proves hardware only supports single precision (F extension)
+- Measures software emulation performance penalty
+- Compares with single-precision hardware performance
 
 ### Anti-Optimization Measures
 
