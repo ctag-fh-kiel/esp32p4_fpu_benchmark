@@ -1,5 +1,7 @@
 # ESP32-P4 FPU Performance Benchmark
 
+## WARNING: Everything in this project is AI generated. Please verify all information independently before use.
+
 [![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.5-blue)](https://github.com/espressif/esp-idf)
 [![Platform](https://img.shields.io/badge/Platform-ESP32--P4-green)](https://www.espressif.com/en/products/socs/esp32-p4)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange)](LICENSE)
